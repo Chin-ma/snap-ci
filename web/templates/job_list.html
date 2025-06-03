@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapCI Pipeline Configuration</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+        .pipeline {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .job {
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+            background-color: #f9f9f9;
+        }
+        .step {
+            padding-left: 15px;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        .needs {
+            font-style: italic;
+            color: #777;
+            font-size: 0.8em;
+        }
+        .repo-input {
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>GoCI Pipeline Configuration</h1>
+    <div class="pipeline">
+        <h2>{{ .Config.Name }}</h2>
+        <p>
+            <strong>Triggers:</strong> {{ range $index, $trigger := .Config.On }}{{
+            if $index }}, {{ end }}{{ $trigger }}{{ end }}
+        </p>
+
+        <h3>Jobs:</h3>
+        {{ range $jobName, $job := .Config.Jobs }}
+        <div class="job">
+            <h4>{{ $jobName }}</h4>
+            {{ if $job.Needs }}
+            <p class="needs">
+                Needs: {{ range $index, $need := $job.Needs }}{{ if $index }}, {{ end
+                }}{{ $need }}{{ end }}
+            </p>
+            {{ end }}
+            <h5>Steps:</h5>
+            <ul>
+                {{ range $step := $job.Steps }}
+                <li class="step">
+                    <strong>{{ $step.Name }}:</strong> <code>{{ $step.Run }}</code>
+                </li>
+                {{ end }}
+            </ul>
+        </div>
+        {{ end }}
+    </div>
+
+    <div>
+        <label for="repoURL">Repository URL:</label>
+        <input type="text" id="repoURL" class="repo-input" placeholder="Enter repository URL">
+    </div>
+
+    <button id="runPipelineBtn">Run Pipeline</button>
+    <script>
+        document
+            .getElementById("runPipelineBtn")
+            .addEventListener("click", function () {
+                const repoURLInput = document.getElementById("repoURL");
+                const repoURL = repoURLInput.value.trim();
+
+                if (!repoURL) {
+                    alert("Please enter the repository URL.");
+                    return;
+                }
+
+                fetch("/run-pipeline", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        // Add any necessary authentication headers here
+                    },
+                    body: JSON.stringify({
+                        repoURL: repoURL,
+                        // Add other parameters like branch if needed
+                    }),
+                })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.success) {
+                        alert("Pipeline run initiated!");
+                        const progressBar = document.createElement("div");
+                        progressBar.style.width = "100%";
+                        progressBar.style.height = "20px";
+                        progressBar.style.backgroundColor = "#f3f3f3";
+                        progressBar.style.border = "1px solid #ccc";
+                        progressBar.style.borderRadius = "5px";
+                        progressBar.style.marginTop = "10px";
+
+                        const progress = document.createElement("div");
+                        progress.style.height = "100%";
+                        progress.style.width = "0%";
+                        progress.style.backgroundColor = "#4caf50";
+                        progress.style.borderRadius = "5px";
+
+                        progressBar.appendChild(progress);
+                        document.body.appendChild(progressBar);
+
+                        // Simulate progress
+                        let progressValue = 0;
+                        const interval = setInterval(() => {
+                            if (progressValue >= 100) {
+                                clearInterval(interval);
+                                alert("Pipeline run completed!");
+                            } else {
+                                progressValue += 10; // Simulate progress increment
+                                progress.style.width = progressValue + "%";
+                            }
+                        }, 1000);
+                    } else {
+                        alert("Error initiating pipeline: " + data.error);
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error:", error);
+                    alert("Failed to communicate with the server.");
+                });
+            });
+    </script>
+</body>
+</html>

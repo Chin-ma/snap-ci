@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapCI Run Details - {{ .ID }}</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        h1 { text-align: center; }
+        h2 { margin-top: 20px; }
+        .status-success { color: green; }
+        .status-failure { color: red; }
+        .job { border: 1px solid #eee; padding: 15px; margin-bottom: 15px; }
+        .step { border-top: 1px dashed #ccc; padding-top: 10px; margin-top: 10px; }
+        .step-logs { white-space: pre-wrap; font-family: monospace; font-size: 0.9em; background-color: #f9f9f9; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>SnapCI Run Details - {{ .ID }}</h1>
+
+    <p><strong>Run ID:</strong> {{ .ID }}</p>
+    <p><strong>Start Time:</strong> {{ .StartTime.Format "2006-01-02 15:04:05" }}</p>
+    <p><strong>End Time:</strong> {{ .EndTime.Format "2006-01-02 15:04:05" }}</p>
+    <p><strong>Overall Status:</strong> <span class="status-{{ .Status | lower }}">{{ .Status }}</span></p>
+
+    <h2>Job Results</h2>
+    {{ range $jobName, $result := .Results }}
+    <div class="job">
+        <h3>Job: {{ $jobName }} - Status: <span class="status-{{ $result.Status | lower }}">{{ $result.Status }}</span></h3>
+        {{ if $result.Logs }}
+        <div class="step">
+             <h4>Logs:</h4>
+            <div class="step-logs">
+                <pre>{{ $result.Logs }}</pre>
+            </div>
+        </div>
+        <p>No logs for this step.</p>
+        {{ end }}
+    </div>
+    {{ else }}
+    <p>No jobs found for this run.</p>
+    {{ end }}
+
+    <p><a href="/">Back to Run History</a></p>
+</body>
+</html>

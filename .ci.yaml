@@ -1,0 +1,11 @@
+name: MyFirstPipeline
+on: [push]
+jobs:
+  build:
+    steps:
+      - name: Clean Workspace
+        run: rm -rf temp_repo 
+      - name: Check Out Code
+        run: git clone https://github.com/Chin-ma/chinmay-assessment temp_repo
+      - name: List Files
+        run: ls -l temp_repo

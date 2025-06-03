@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapCI Run History</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        h1 { text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #f0f0f0; }
+        .status-success { color: green; }
+        .status-failure { color: red; }
+    </style>
+</head>
+<body>
+    <h1>SnapCI Run History</h1>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Run ID</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>Status</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ range . }}
+            <tr>
+                <td>{{ .ID }}</td>
+                <td>{{ .StartTime.Format "2006-01-02 15:04:05" }}</td>
+                <td>{{ .EndTime.Format "2006-01-02 15:04:05" }}</td>
+                <td class="status-{{ .Status | lower }}">{{ .Status }}</td>
+                <td><a href="/runs/{{ .ID }}">View Details</a></td>
+            </tr>
+            {{ else }}
+            <tr><td colspan="5">No runs yet.</td></tr>
+            {{ end }}
+        </tbody>
+    </table>
+</body>
+</html>
