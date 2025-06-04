@@ -1,3 +1,5 @@
+// main.go
+
 package main
 
 import (
@@ -35,13 +37,23 @@ func main() {
 
 					//  Normally, this would be triggered by a webhook
 					//  For testing, we trigger it manually
-					jobResults, err := pipeline.ExecutePipeline(cfg)
+					jobResults, err := pipeline.ExecutePipeline(*cfg)
 					if err != nil {
 						return err
 					}
 
 					//  Store results and display in CLI
-					if err := storage.StoreRun(cfg, jobResults); err != nil {
+					// FIX: Provide placeholder values for the new arguments required by storage.StoreRun
+					if err := storage.StoreRun(
+						cfg,
+						jobResults,
+						"manual-run/repo",         // Placeholder
+						"manual-branch",           // Placeholder
+						"manual-sha",              // Placeholder
+						"Manual pipeline trigger", // Placeholder
+						"manual-user",             // Placeholder
+						"cli-user",                // Placeholder
+					); err != nil {
 						return err
 					}
 					storage.DisplayRunResults(jobResults)
@@ -114,9 +126,20 @@ func displayRunLogs(runID string) error {
 		return err
 	}
 	fmt.Printf("Logs for Run ID: %s\n", runID)
+	// Display new run metadata
+	fmt.Printf("  Repository: %s\n", run.RepoName)
+	fmt.Printf("  Branch: %s\n", run.Branch)
+	fmt.Printf("  Commit: %s - %s\n", run.CommitSHA, run.CommitMsg)
+	fmt.Printf("  Author: %s\n", run.CommitAuthor)
+	fmt.Printf("  Triggered By: %s\n", run.TriggeredBy)
+	fmt.Println("---")
+
 	for jobName, result := range run.Results {
 		fmt.Printf("Job: %s - Status: %s\n", jobName, result.Status)
-		fmt.Printf("Logs:\n%s\n", result.Logs)
+		for stepName, stepResult := range result.Steps {
+			fmt.Printf("Step: %s - Status: %s\n", stepName, stepResult.Status)
+			fmt.Printf("Logs:\n%s\n", stepResult.Logs)
+		}
 		fmt.Println("---")
 	}
 	return nil

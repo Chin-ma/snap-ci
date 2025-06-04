@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"snap-ci/config"
-	"snap-ci/pipeline"
+	"snap-ci/types"
 )
 
 const (
@@ -18,16 +18,31 @@ const (
 
 // RunMetadata stores metadata about a pipeline run
 type RunMetadata struct {
-	ID        string                        `json:"id"`
-	Config    config.Config                 `json:"config"`
-	Results   map[string]pipeline.JobResult `json:"results"`
-	StartTime time.Time                     `json:"start_time"`
-	EndTime   time.Time                     `json:"end_time"`
-	Status    string                        `json:"status"`
+	ID           string                     `json:"id"`
+	Config       config.Config              `json:"config"`
+	Results      map[string]types.JobResult `json:"results"`
+	StartTime    time.Time                  `json:"start_time"`
+	EndTime      time.Time                  `json:"end_time"`
+	Status       string                     `json:"status"`
+	TriggeredBy  string                     `json:"triggered_by"`
+	RepoName     string                     `json:"repo_name"`
+	Branch       string                     `json:"branch"`
+	CommitSHA    string                     `json:"commit_sha"`
+	CommitMsg    string                     `json:"commit_msg"`
+	CommitAuthor string                     `json:"commit_author"`
 }
 
 // StoreRun stores the results of a pipeline run to a JSON file
-func StoreRun(cfg *config.Config, results map[string]pipeline.JobResult) error {
+func StoreRun(
+	cfg *config.Config,
+	results map[string]types.JobResult,
+	repoName string,
+	branch string,
+	commitSHA string,
+	commitMsg string,
+	commitAuthor string,
+	triggeredBy string,
+) error {
 	err := os.MkdirAll(runMetadataDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create run metadata directory: %w", err)
@@ -35,12 +50,18 @@ func StoreRun(cfg *config.Config, results map[string]pipeline.JobResult) error {
 
 	runID := time.Now().Format("20060102150405") // Unique ID based on timestamp
 	metadata := RunMetadata{
-		ID:        runID,
-		Config:    *cfg,
-		Results:   results,
-		StartTime: time.Now(),
-		EndTime:   time.Now(),
-		Status:    calculateOverallStatus(results),
+		ID:           runID,
+		Config:       *cfg,
+		Results:      results,
+		StartTime:    time.Now(),
+		EndTime:      time.Now(),
+		Status:       calculateOverallStatus(results),
+		RepoName:     repoName,
+		Branch:       branch,
+		CommitSHA:    commitSHA,
+		CommitMsg:    commitMsg,
+		CommitAuthor: commitAuthor,
+		TriggeredBy:  triggeredBy,
 	}
 
 	filename := filepath.Join(runMetadataDir, fmt.Sprintf("run_%s.json", runID))
@@ -60,7 +81,7 @@ func StoreRun(cfg *config.Config, results map[string]pipeline.JobResult) error {
 	return nil
 }
 
-func calculateOverallStatus(results map[string]pipeline.JobResult) string {
+func calculateOverallStatus(results map[string]types.JobResult) string {
 	overallStatus := "Success"
 	for _, result := range results {
 		if result.Status == "Failure" {
@@ -128,10 +149,14 @@ func GetRecentRuns(limit int) ([]RunMetadata, error) {
 }
 
 // DisplayRunResults displays the results in the CLI (remains the same)
-func DisplayRunResults(results map[string]pipeline.JobResult) {
+func DisplayRunResults(results map[string]types.JobResult) {
 	fmt.Println("Pipeline Results:")
 	for jobName, result := range results {
-		fmt.Printf("  %s: %s\n", jobName, result.Status)
-		fmt.Printf("  Logs:\n%s\n", result.Logs)
+		fmt.Printf("%s: %s\n", jobName, result.Status)
+		for stepName, stepResult := range result.Steps {
+			fmt.Printf("Step: %s - Status: %s\n", stepName, stepResult.Status)
+			fmt.Printf("Logs:\n%s\n", stepResult.Logs)
+		}
+		fmt.Println("---")
 	}
 }

@@ -8,33 +8,56 @@
         body { font-family: sans-serif; margin: 20px; }
         h1 { text-align: center; }
         h2 { margin-top: 20px; }
+        p { margin-bottom: 5px; }
         .status-success { color: green; }
         .status-failure { color: red; }
+        .status-running { color: orange; }
         .job { border: 1px solid #eee; padding: 15px; margin-bottom: 15px; }
         .step { border-top: 1px dashed #ccc; padding-top: 10px; margin-top: 10px; }
         .step-logs { white-space: pre-wrap; font-family: monospace; font-size: 0.9em; background-color: #f9f9f9; padding: 10px; overflow-x: auto; }
+        .metadata-section {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #f0f8ff;
+        }
+        .metadata-section p strong { min-width: 120px; display: inline-block; }
     </style>
 </head>
 <body>
     <h1>SnapCI Run Details - {{ .ID }}</h1>
 
-    <p><strong>Run ID:</strong> {{ .ID }}</p>
-    <p><strong>Start Time:</strong> {{ .StartTime.Format "2006-01-02 15:04:05" }}</p>
-    <p><strong>End Time:</strong> {{ .EndTime.Format "2006-01-02 15:04:05" }}</p>
-    <p><strong>Overall Status:</strong> <span class="status-{{ .Status | lower }}">{{ .Status }}</span></p>
+    <div class="metadata-section">
+        <h2>Run Information</h2>
+        <p><strong>Run ID:</strong> {{ .ID }}</p>
+        <p><strong>Overall Status:</strong> <span class="status-{{ .Status | lower }}">{{ .Status }}</span></p>
+        <p><strong>Start Time:</strong> {{ .StartTime.Format "2006-01-02 15:04:05" }}</p>
+        <p><strong>End Time:</strong> {{ .EndTime.Format "2006-01-02 15:04:05" }}</p>
+        <hr>
+        <h2>Trigger Information</h2>
+        <p><strong>Repository:</strong> {{ .RepoName }}</p>
+        <p><strong>Branch:</strong> {{ .Branch }}</p>
+        <p><strong>Commit SHA:</strong> {{ .CommitSHA }}</p>
+        <p><strong>Commit Message:</strong> {{ .CommitMsg }}</p>
+        <p><strong>Commit Author:</strong> {{ .CommitAuthor }}</p>
+        <p><strong>Triggered By:</strong> {{ .TriggeredBy }}</p>
+    </div>
 
     <h2>Job Results</h2>
     {{ range $jobName, $result := .Results }}
     <div class="job">
         <h3>Job: {{ $jobName }} - Status: <span class="status-{{ $result.Status | lower }}">{{ $result.Status }}</span></h3>
-        {{ if $result.Logs }}
+        {{ range $stepName, $stepResult := $result.Steps }}
         <div class="step">
-             <h4>Logs:</h4>
+            <h4>Step: {{ $stepResult.Name }} - Status: <span class="status-{{ $stepResult.Status | lower }}">{{ $stepResult.Status }}</span></h4>
+            {{ if $stepResult.Logs }}
             <div class="step-logs">
-                <pre>{{ $result.Logs }}</pre>
+                <pre>{{ $stepResult.Logs }}</pre>
             </div>
+            {{ else }}
+            <p>No logs for this step.</p>
+            {{ end }}
         </div>
-        <p>No logs for this step.</p>
         {{ end }}
     </div>
     {{ else }}

@@ -1,21 +1,60 @@
+// executor/executor.go
+
 package executor
 
 import (
-	"fmt"
+	"bytes"
+	"fmt" // Import fmt for better error formatting
+	"log"
 	"os/exec"
-
-	"snap-ci/config"
+	"snap-ci/types"
+	"strings" // Import strings for trimming whitespace
+	// "time" // If you add timestamps
 )
 
-// ExecuteStep executes a step directly on the host
-func ExecuteStep(step config.Step) (string, error) {
-	cmd := exec.Command("/bin/sh", "-c", step.Run)
-	cmd.Dir = "./temp_repo" // Execute commands within the cloned repository
+// Step represents a single execution step.
+type Step struct { // Define the Step struct here or import it if defined elsewhere
+	Name string `yaml:"name"`
+	Run  string `yaml:"run"`
+}
 
-	output, err := cmd.CombinedOutput()
+// ExecuteStep executes a single step in the pipeline.
+func ExecuteStep(step Step, workingDir string) (types.StepResult, error) {
+	// startTime := time.Now() // If you add timestamps
+
+	cmd := exec.Command("bash", "-c", step.Run)
+	cmd.Dir = workingDir
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	err := cmd.Run()
+	// endTime := time.Now() // If you add timestamps
+
+	// Capture both stdout and stderr
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
+	logs := stdout + stderr
+
+	status := "Success"
 	if err != nil {
-		return string(output), fmt.Errorf("command failed: %w\nOutput: %s", err, string(output))
+		status = "Failure"
+		log.Printf("Step '%s' failed: %v", step.Name, err)
+		// Include stderr in the error message for more context
+		return types.StepResult{}, fmt.Errorf("step '%s' failed: %v, stderr: %s", step.Name, err, strings.TrimSpace(stderr))
 	}
 
-	return string(output), nil
+	stepResult := types.StepResult{
+		Name:   step.Name,
+		Status: status,
+		Logs:   logs,
+		// StartTime: startTime, // If you add timestamps
+		// EndTime:   endTime,
+	}
+
+	// Log the output (optional, but helpful for debugging)
+	log.Printf("Step '%s' output:\n%s", step.Name, logs)
+
+	return stepResult, nil
 }

@@ -1,65 +1,66 @@
 package pipeline
 
 import (
-	"fmt"
-	"sync"
-
+	"log"
 	"snap-ci/config"
 	"snap-ci/executor"
+	"snap-ci/types"
 )
 
-// JobResult stores the result of a job execution
-type JobResult struct {
-	Name   string
-	Status string
-	Logs   string
-}
-
 // ExecutePipeline executes the pipeline defined in the config
-func ExecutePipeline(cfg *config.Config) (map[string]JobResult, error) {
-	jobResults := make(map[string]JobResult)
-	var wg sync.WaitGroup
-	jobChan := make(chan config.Job, len(cfg.Jobs))
+func ExecutePipeline(cfg config.Config) (map[string]types.JobResult, error) {
+	jobResults := make(map[string]types.JobResult)
 
-	//  Populate jobChan with jobs
-	for name, job := range cfg.Jobs {
-		job.Name = name //  Attach name to job for later use
-		jobChan <- job
+	// startTime := time.Now() // If you add timestamps
+	for jobName, job := range cfg.Jobs {
+		// jobStartTime := time.Now() // If you add timestamps
+		jobResult := types.JobResult{
+			Status: "Success",
+			Steps:  make(map[string]types.StepResult),
+		}
+
+		for _, step := range job.Steps {
+			// stepStartTime := time.Now() // If you add timestamps
+			stepResult, err := executor.ExecuteStep(executor.Step(step), "temp_repo") // Assuming "temp_repo" is the working dir
+			// stepEndTime := time.Now()
+
+			jobResult.Steps[step.Name] = stepResult // Store the StepResult
+
+			if err != nil {
+				jobResult.Status = "Failure"
+				log.Printf("Job '%s', Step '%s' failed: %v", jobName, step.Name, err)
+				break // Stop executing steps in this job
+			}
+			// Optionally log step success
+			log.Printf("Job '%s', Step '%s' succeeded", jobName, step.Name)
+
+		}
+		// jobEndTime := time.Now()
+		jobResults[jobName] = jobResult
 	}
-	close(jobChan)
+	// endTime := time.Now()
 
-	//  Process jobs concurrently
-	for job := range jobChan {
-		wg.Add(1)
-		go func(j config.Job) {
-			defer wg.Done()
-			result := executeJob(j)
-			jobResults[j.Name] = result
-		}(job)
-	}
-
-	wg.Wait()
 	return jobResults, nil
 }
 
 // executeJob executes a single job
-func executeJob(job config.Job) JobResult {
-	result := JobResult{
-		Name:   job.Name,
-		Status: "Success", //  Assume success, change if error
-		Logs:   "",
-	}
+// func executeJob(job config.Job) JobResult {
+//  result := JobResult{
+//      Name:   job.Name,
+//      Status: "Success", //  Assume success, change if error
+//      Logs:   "",
+//  }
 
-	for _, step := range job.Steps {
-		fmt.Printf("  Running step: %s\n", step.Name)
-		logs, err := executor.ExecuteStep(step) //  Phase 1: Local execution
-		result.Logs += logs + "\n"
-		if err != nil {
-			result.Status = "Failure"
-			result.Logs += "Step failed: " + err.Error()
-			break //  Stop on first failure
-		}
-	}
+//  for _, step := range job.Steps {
+//      fmt.Printf("  Running step: %s\n", step.Name)
+//      logs, err := executor.ExecuteStep(step) //  Phase 1: Local execution
+//      result.Logs += logs + "\n"
+//      if err != nil {
+//          result.Status = "Failure"
+//          result.Logs += "Step failed: " + err.Error()
+//          break //  Stop on first failure
+//      }
+//  }
 
-	return result
-}
+//  return result
+// }
