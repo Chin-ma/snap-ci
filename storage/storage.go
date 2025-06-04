@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"snap-ci/config"
@@ -30,6 +31,68 @@ type RunMetadata struct {
 	CommitSHA    string                     `json:"commit_sha"`
 	CommitMsg    string                     `json:"commit_msg"`
 	CommitAuthor string                     `json:"commit_author"`
+}
+
+type RepoAuth struct {
+	RepoName    string `json:"repo_name"`
+	GithubToken string `json:"github_token"`
+}
+
+const (
+	authDataDir = "auth_data"
+)
+
+func StoreRepoAuth(repoName, githubToken string) error {
+	err := os.MkdirAll(authDataDir, 0700)
+	if err != nil {
+		return fmt.Errorf("failed to create auth data directory: %w", err)
+	}
+
+	authID := strings.ReplaceAll(repoName, "/", "_")
+	filename := filepath.Join(authDataDir, fmt.Sprintf("%s.json", authID))
+
+	authData := RepoAuth{
+		RepoName:    repoName,
+		GithubToken: githubToken,
+	}
+
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create/open auth data file: %w", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(authData); err != nil {
+		return fmt.Errorf("failed to encode auth data to JSON: %w", err)
+	}
+
+	fmt.Printf("Authentication data for %s stored in: %s\n", repoName, filename)
+	return nil
+}
+
+// GetRepoAuth retrieves the authentication token for a given repository.
+func GetRepoAuth(repoName string) (*RepoAuth, error) {
+	authID := strings.ReplaceAll(repoName, "/", "_")
+	filename := filepath.Join(authDataDir, fmt.Sprintf("%s.json", authID))
+
+	file, err := os.Open(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("authentication data for repository '%s' not found", repoName)
+		}
+		return nil, fmt.Errorf("failed to open auth data file: %w", err)
+	}
+	defer file.Close()
+
+	var authData RepoAuth
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(&authData); err != nil {
+		return nil, fmt.Errorf("failed to decode auth data from JSON: %w", err)
+	}
+
+	return &authData, nil
 }
 
 // StoreRun stores the results of a pipeline run to a JSON file

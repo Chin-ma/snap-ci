@@ -386,8 +386,47 @@ func cloneRepo(repoURL string, fullRef string) error {
 		branch = "main"
 	}
 
-	cmd := exec.Command("git", "clone", "-b", branch, repoURL, "temp_repo")
-	log.Printf("Executing: %s", cmd.String())
+	// --- NEW: Handle private repository authentication ---
+	// Extract owner/repo name from cloneURL for auth lookup
+	// e.g., "https://github.com/owner/repo.git" -> "owner/repo"
+	repoFullName := ""
+	if strings.HasPrefix(repoURL, "https://github.com/") {
+		trimmed := strings.TrimPrefix(repoURL, "https://github.com/")
+		trimmed = strings.TrimSuffix(trimmed, ".git")
+		repoFullName = trimmed
+	} else {
+		// Handle other git providers/protocols if necessary
+		log.Printf("Warning: Unsupported repository URL format for automatic authentication: %s. Proceeding without stored PAT.", repoURL)
+	}
+
+	auth := &storage.RepoAuth{} // Initialize auth to nil or default
+	if repoFullName != "" {
+		var err error
+		auth, err = storage.GetRepoAuth(repoFullName)
+		if err != nil {
+			log.Printf("No stored authentication found for %s: %v. Attempting to clone without token (might fail for private repos).", repoFullName, err)
+			// If no auth found, proceed without it; git will prompt or fail
+		}
+	}
+
+	cloneCmdArgs := []string{"clone", "-b", branch}
+	finalRepoURL := repoURL
+
+	if auth != nil && auth.GithubToken != "" {
+		// For HTTPS, embed the token directly into the URL
+		// Format: https://oauth2:<token>@github.com/owner/repo.git
+		if strings.HasPrefix(repoURL, "https://github.com/") {
+			finalRepoURL = fmt.Sprintf("https://oauth2:%s@%s", auth.GithubToken, strings.TrimPrefix(repoURL, "https://"))
+			log.Printf("Using stored GitHub PAT for cloning %s", repoFullName)
+		} else {
+			log.Printf("Warning: Stored PAT is for GitHub, but repoURL is not GitHub HTTPS: %s. Proceeding without embedding token.", repoURL)
+		}
+	}
+
+	cloneCmdArgs = append(cloneCmdArgs, finalRepoURL, "temp_repo")
+
+	cmd := exec.Command("git", cloneCmdArgs...) // Use the slice of arguments
+	log.Printf("Executing: git %s", strings.Join(cloneCmdArgs, " "))
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

@@ -145,6 +145,42 @@ func main() {
 					return nil
 				},
 			},
+			{
+				Name:  "auth",
+				Usage: "Manage authentication credentials for private repositories",
+				Subcommands: []*cli.Command{
+					{
+						Name:  "add",
+						Usage: "Add Github Personal Access Token (PAT) for a private repository",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "repo",
+								Usage:    "GitHub repository in the format 'owner/repo-name' (e.g., 'myorg/myproject')",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "token",
+								Usage:    "GitHub Personal Access Token with 'repo:hooks' scope",
+								Required: true,
+								EnvVars:  []string{"GITHUB_TOKEN"}, // Allow token from env var
+							},
+						},
+						Action: func(c *cli.Context) error {
+							repo := c.String("repo")
+							token := c.String("token")
+							if token == "" {
+								return cli.Exit("Github PAT is required. Use --token flag or set GITHUB_TOKEN env var", 1)
+							}
+							log.Printf("Storing Authentication data for %s...", repo)
+							if err := storage.StoreRepoAuth(repo, token); err != nil {
+								return fmt.Errorf("failed to store authentication data: %w", err)
+							}
+							log.Printf("Authentication for %s successfully stored. Use this repo in git clone operations", repo)
+							return nil
+						},
+					},
+				},
+			},
 		},
 		Action: func(c *cli.Context) error {
 			return c.App.Command("run").Run(c)
