@@ -23,7 +23,7 @@ func runHistoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl, err := template.New("run_history.html").Funcs(funcMap).ParseFiles("web/templates/run_history.html")
+	tmpl, err := template.New("run_history.html").Funcs(funcMap).ParseFiles("/home/chinmay/Documents/snap-ci/web/templates/run_history.html")
 	if err != nil {
 		log.Printf("Error parsing template: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -46,7 +46,7 @@ func runDetailsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl, err := template.New("run_details.html").Funcs(funcMap).ParseFiles("web/templates/run_details.html")
+	tmpl, err := template.New("run_details.html").Funcs(funcMap).ParseFiles("/home/chinmay/Documents/snap-ci/web/templates/run_details.html")
 	if err != nil {
 		log.Printf("Error parsing template: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
