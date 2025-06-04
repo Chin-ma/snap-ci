@@ -71,6 +71,43 @@ func main() {
 				},
 			},
 			{
+				Name:  "webhook",
+				Usage: "Manage GitHub webhooks for automatic registration",
+				Subcommands: []*cli.Command{
+					{
+						Name:  "setup",
+						Usage: "Set up or update a GitHub webhook with the current ngrok URL",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "repo",
+								Usage:    "GitHub repository in the format 'owner/repo-name' (e.g., 'myorg/myproject')",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "token",
+								Usage:    "GitHub Personal Access Token with 'repo:hooks' scope",
+								Required: true,
+								EnvVars:  []string{"GITHUB_TOKEN"}, // Allow token from env var
+							},
+						},
+						Action: func(c *cli.Context) error {
+							repo := c.String("repo")
+							token := c.String("token")
+
+							log.Printf("Attempting to set up webhook for %s...", repo)
+							// Call a function in your 'web' package to handle the actual setup
+							// This function would fetch the ngrok URL and interact with GitHub API
+							if err := git.SetupGitHubWebhook(repo, token); err != nil {
+								return fmt.Errorf("failed to set up GitHub webhook: %w", err)
+							}
+							log.Printf("Webhook for %s successfully set up/updated.", repo)
+							return nil
+						},
+					},
+					// Add other webhook management subcommands if needed (e.g., "delete", "list")
+				},
+			},
+			{
 				Name:  "logs",
 				Usage: "View logs for a run",
 				Flags: []cli.Flag{

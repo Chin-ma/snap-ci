@@ -1,10 +1,10 @@
-// git/git.go
-
 package git
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -16,7 +16,6 @@ import (
 	"snap-ci/config"
 	"snap-ci/pipeline"
 	"snap-ci/storage"
-	// Import the new types package
 )
 
 // Define a more comprehensive PushEvent struct to match GitHub's payload
@@ -93,6 +92,170 @@ type CommitAuthor struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Username string `json:"username"`
+}
+
+// NgrokTunnel represents a single tunnel returned by the Ngrok API
+type NgrokTunnel struct {
+	PublicURL string `json:"public_url"`
+	Proto     string `json:"proto"`
+}
+
+// NgrokTunnelsResponse represents the full response from the Ngrok API's /api/tunnels endpoint
+type NgrokTunnelsResponse struct {
+	Tunnels []NgrokTunnel `json:"tunnels"`
+}
+
+// GetNgrokPublicURL queries the local Ngrok API to get the public HTTPS tunnel URL.
+func GetNgrokPublicURL() (string, error) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("http://127.0.0.1:4040/api/tunnels")
+	if err != nil {
+		return "", fmt.Errorf("failed to query Ngrok API (is Ngrok running?): %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("Ngrok API returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var data NgrokTunnelsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", fmt.Errorf("failed to decode Ngrok API response: %w", err)
+	}
+
+	for _, tunnel := range data.Tunnels {
+		if tunnel.Proto == "https" {
+			return tunnel.PublicURL, nil
+		}
+	}
+	return "", fmt.Errorf("no public HTTPS tunnel found in Ngrok API response. Ensure Ngrok is forwarding an HTTPS tunnel (e.g., ngrok http 8080)")
+}
+
+// RegisterGithubWebhook registers or updates a webhook on GitHub.
+// It checks if a webhook exists and attempts to update it, otherwise creates a new one.
+func RegisterGithubWebhook(owner, repo, webhookURL, githubToken string) error {
+	// First, check if a webhook already exists for this URL
+	existingWebhooksURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/hooks", owner, repo)
+	req, err := http.NewRequest(http.MethodGet, existingWebhooksURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create get webhooks request: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Authorization", fmt.Sprintf("token %s", githubToken))
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to get existing webhooks: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("GitHub API (get webhooks) returned status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var hooks []struct {
+		ID     int64 `json:"id"`
+		Config struct {
+			URL string `json:"url"`
+		} `json:"config"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&hooks); err != nil {
+		return fmt.Errorf("failed to decode existing webhooks response: %w", err)
+	}
+
+	var existingHookID int64 = 0
+	for _, hook := range hooks {
+		// GitHub might append a trailing slash, so normalize for comparison
+		if strings.TrimSuffix(hook.Config.URL, "/") == strings.TrimSuffix(webhookURL, "/") {
+			existingHookID = hook.ID
+			break
+		}
+	}
+
+	hookConfig := map[string]interface{}{
+		"name":   "web",
+		"active": true,
+		"events": []string{"push"},
+		"config": map[string]string{
+			"url":          webhookURL,
+			"content_type": "json",
+			"insecure_ssl": "0", // Always set to "0" for security unless absolutely necessary
+		},
+	}
+
+	var apiMethod string
+	var apiTargetURL string
+	if existingHookID != 0 {
+		apiMethod = http.MethodPatch // Update existing webhook
+		apiTargetURL = fmt.Sprintf("https://api.github.com/repos/%s/%s/hooks/%d", owner, repo, existingHookID)
+		log.Printf("Updating existing webhook (ID: %d) for %s/%s to %s", existingHookID, owner, repo, webhookURL)
+	} else {
+		apiMethod = http.MethodPost // Create new webhook
+		apiTargetURL = fmt.Sprintf("https://api.github.com/repos/%s/%s/hooks", owner, repo)
+		log.Printf("Creating new webhook for %s/%s at %s", owner, repo, webhookURL)
+	}
+
+	body, err := json.Marshal(hookConfig)
+	if err != nil {
+		return fmt.Errorf("failed to marshal webhook config: %w", err)
+	}
+
+	req, err = http.NewRequest(apiMethod, apiTargetURL, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to create GitHub API request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Authorization", fmt.Sprintf("token %s", githubToken))
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err = client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send GitHub API request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 { // 200 OK for PATCH, 201 Created for POST
+		log.Printf("Successfully set up webhook for %s/%s at %s", owner, repo, webhookURL)
+		return nil
+	} else {
+		return fmt.Errorf("GitHub API returned error status %d: %s", resp.StatusCode, string(respBody))
+	}
+}
+
+// SetupGitHubWebhook orchestrates fetching the ngrok URL and registering it with GitHub.
+func SetupGitHubWebhook(repoFullName, githubToken string) error {
+	log.Println("Fetching Ngrok public URL...")
+	ngrokURL, err := GetNgrokPublicURL()
+	if err != nil {
+		return fmt.Errorf("could not get Ngrok public URL: %w", err)
+	}
+	log.Printf("Ngrok public URL: %s", ngrokURL)
+
+	parts := strings.Split(repoFullName, "/")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repository format: %s. Expected 'owner/repo-name'", repoFullName)
+	}
+	owner := parts[0]
+	repoName := parts[1]
+
+	// Append the webhook path to the ngrok URL
+	fullWebhookURL := ngrokURL + "/webhook"
+
+	log.Printf("Attempting to register GitHub webhook for %s/%s with URL: %s", owner, repoName, fullWebhookURL)
+	if err := RegisterGithubWebhook(owner, repoName, fullWebhookURL, githubToken); err != nil {
+		return fmt.Errorf("failed to register GitHub webhook: %w", err)
+	}
+
+	log.Printf("GitHub webhook successfully configured for %s/%s.", repoFullName)
+	return nil
 }
 
 // WebhookHandler handles incoming Git webhooks
