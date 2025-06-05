@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"snap-ci/config"
 	"snap-ci/git"
@@ -15,6 +19,62 @@ import (
 
 	"github.com/urfave/cli/v2" // Or Cobra
 )
+
+const (
+	webhookListenerPort = 8080
+	ngrokAPIPort        = 4040
+)
+
+func ensureNgrokInstalled() error {
+	_, err := exec.LookPath("ngrok")
+	if err != nil {
+		log.Println("ngrok not found in system path")
+		log.Println("Please install ngrok from https://ngrok.com/download and ensure it's added to your system path.")
+		log.Println("Also, remember to authenticate ngrok once: `ngrok config add-authtoken <your_ngrok_auth_token>`")
+		return fmt.Errorf("ngrok not installed or not found in system path: %w", err)
+	}
+	log.Println("ngrok not found in PATH")
+	return nil
+}
+
+func startNgrokTunnel(localPort string) (string, func(), error) {
+	log.Printf("Starting ngrok tunnel on port %s", localPort)
+	cmd := exec.Command("ngrok", "http", localPort)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return "", nil, fmt.Errorf("failed to start ngrok tunnel: %w", err)
+	}
+	cleanup := func() {
+		log.Println("Stopping ngrok tunnel...")
+		if err := cmd.Process.Kill(); err != nil {
+			log.Printf("Failed to kill ngrok tunnel process: %v", err)
+		} else {
+			log.Printf("ngrok tunnel stopped.")
+		}
+	}
+
+	ngrokURL := ""
+	timeOut := time.After(30 * time.Second)
+	tick := time.NewTicker(2 * time.Second)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-timeOut:
+			cleanup()
+			return "", cleanup, fmt.Errorf("timed out waiting for ngrok tunnel to become active")
+		case <-tick.C:
+			url, err := git.GetNgrokPublicURL()
+			if err == nil && url != "" {
+				ngrokURL = url
+				log.Printf("Ngrok Public URL obtained: %s", ngrokURL)
+				return ngrokURL, cleanup, nil
+			}
+			log.Println("Waiting for ngrok tunnel to become active...")
+		}
+	}
+}
 
 func main() {
 	app := &cli.App{
@@ -179,6 +239,72 @@ func main() {
 							return nil
 						},
 					},
+				},
+			},
+			{
+				Name:  "start",
+				Usage: "Starts the webhook listener, ngrok tunnel, and optionally sets up Github webhook.",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "repo",
+						Usage: "Optional: GitHub repository in the format 'owner/repo-name' (e.g., 'myorg/myproject')",
+					},
+					&cli.StringFlag{
+						Name:    "token",
+						Usage:   "Optional: GitHub Personal Access Token with 'repo:hooks' scope",
+						EnvVars: []string{"GITHUB_TOKEN"},
+					},
+				},
+				Action: func(c *cli.Context) error {
+					if err := ensureNgrokInstalled(); err != nil {
+						return err
+					}
+
+					ngrokPublicURL, ngrokCleanup, err := startNgrokTunnel(fmt.Sprintf("%d", webhookListenerPort))
+					if err != nil {
+						return err
+					}
+					defer ngrokCleanup()
+
+					go func() {
+						log.Println("Starting webhook listener...")
+						if err := git.StartWebhookListener(); err != nil {
+							log.Fatalf("Fatal: Failed to start webhook listener: %v", err)
+						}
+					}()
+
+					go func() {
+						if err := web.StartWebServer(); err != nil {
+							log.Fatalf("Fatal: Failed to start web server: %v", err)
+						}
+					}()
+
+					repoToSetup := c.String("repo")
+					tokenToUse := c.String("token")
+
+					if repoToSetup != "" {
+						if tokenToUse == "" {
+							return cli.Exit("Error: --token is required when --repo is specified for automatic webhook setup", 1)
+						}
+						log.Printf("Attempting automatic webhook setup for %s...", repoToSetup)
+						if err := git.SetupGitHubWebhook(repoToSetup, tokenToUse); err != nil {
+							log.Printf("Warning: Failed to setup webhook for %s: %v", repoToSetup, err)
+							log.Printf("You might need to manually set up a webhook for %s using `./snap-ci webhook setup` or ensure your Github PAT has necessary permissions", repoToSetup)
+						} else {
+							log.Printf("Successfully setup webhook for %s", repoToSetup)
+						}
+					} else {
+						log.Println("Skipping automatic webhook setup. Use `./snap-ci webhook setup` to set up a webhook manually")
+					}
+					fmt.Printf("\nSnapCI is running. Webhook listener is listening on port %s/webhook\n", ngrokPublicURL)
+					fmt.Println("Press CTRL+C to stop SnapCI")
+
+					sigchan := make(chan os.Signal, 1)
+					signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
+					<-sigchan
+
+					log.Println("Shutting down SnapCI...")
+					return nil
 				},
 			},
 		},
