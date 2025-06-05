@@ -2,3 +2,4 @@
 /run_metadata
 /auth_data
 snap-ci
+build_release.sh

@@ -16,7 +16,7 @@ var funcMap = template.FuncMap{
 	"lower": strings.ToLower,
 }
 
-var templates = template.Must(template.New("").Funcs(funcMap).ParseGlob("web/templates/*.html"))
+var templates = template.Must(template.New("").Funcs(funcMap).ParseGlob("/home/chinmay/Documents/snap-ci/web/templates/*.html"))
 
 func runHistoryHandler(w http.ResponseWriter, r *http.Request) {
 	runs, err := storage.GetRecentRuns(10) // Get the 10 most recent runs
