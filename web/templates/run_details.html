@@ -3,67 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SnapCI Run Details - {{ .ID }}</title>
+    <title>SnapCI - Run Details - {{ .ID }}</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; }
-        h1 { text-align: center; }
-        h2 { margin-top: 20px; }
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+        h1 { color: #0056b3; text-align: left; margin-top: 0; }
+        h2 { color: #0056b3; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        h3 { color: #333; margin-top: 15px; margin-bottom: 5px; }
+        h4 { color: #555; margin-top: 10px; margin-bottom: 5px; }
+        .nav { margin-bottom: 20px; }
+        .nav a { margin-right: 15px; text-decoration: none; color: #007bff; }
+        .nav a:hover { text-decoration: underline; }
+        .nav span { margin-right: 15px; font-weight: bold; color: #333; } /* Style for active link */
+        hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+
         p { margin-bottom: 5px; }
-        .status-success { color: green; }
-        .status-failure { color: red; }
-        .status-running { color: orange; }
-        .job { border: 1px solid #eee; padding: 15px; margin-bottom: 15px; }
-        .step { border-top: 1px dashed #ccc; padding-top: 10px; margin-top: 10px; }
-        .step-logs { white-space: pre-wrap; font-family: monospace; font-size: 0.9em; background-color: #f9f9f9; padding: 10px; overflow-x: auto; }
+        p strong { min-width: 150px; display: inline-block; } /* Consistent alignment for metadata */
+
+        .status-success { color: #28a745; font-weight: bold; }
+        .status-failure { color: #dc3545; font-weight: bold; }
+        .status-running { color: #ffc107; font-weight: bold; }
+        .status-pending { color: #6c757d; font-weight: bold; }
+        
         .metadata-section {
-            border: 1px solid #ccc;
+            background-color: #f8f8f8;
+            border: 1px solid #e1e1e1;
             padding: 15px;
             margin-bottom: 20px;
-            background-color: #f0f8ff;
+            border-radius: 4px;
         }
-        .metadata-section p strong { min-width: 120px; display: inline-block; }
+
+        .job {
+            border: 1px solid #e1e1e1;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            background-color: #fefefe;
+        }
+        .step {
+            border-top: 1px solid #eee; /* Changed dashed to solid for consistency */
+            padding-top: 15px;
+            margin-top: 15px;
+        }
+        .step:first-child { /* No top border for the first step in a job */
+            border-top: none;
+            padding-top: 0;
+            margin-top: 0;
+        }
+        .step-logs {
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.9em;
+            background-color: #f0f0f0; /* Darker background for contrast */
+            padding: 10px;
+            overflow-x: auto;
+            border-radius: 4px;
+            max-height: 300px; /* Limit log height and add scroll */
+            overflow-y: auto;
+        }
+        .back-link { margin-top: 20px; display: block; text-align: center; }
+        .back-link a { text-decoration: none; color: #007bff; font-weight: bold; padding: 8px 15px; border: 1px solid #007bff; border-radius: 4px; }
+        .back-link a:hover { background-color: #007bff; color: white; }
     </style>
 </head>
 <body>
-    <h1>SnapCI Run Details - {{ .ID }}</h1>
-
-    <div class="metadata-section">
-        <h2>Run Information</h2>
-        <p><strong>Run ID:</strong> {{ .ID }}</p>
-        <p><strong>Overall Status:</strong> <span class="status-{{ .Status | lower }}">{{ .Status }}</span></p>
-        <p><strong>Start Time:</strong> {{ .StartTime.Format "2006-01-02 15:04:05" }}</p>
-        <p><strong>End Time:</strong> {{ .EndTime.Format "2006-01-02 15:04:05" }}</p>
+    <div class="container">
+        <h1>SnapCI Run Details - {{ .ID }}</h1>
+        <div class="nav">
+            <a href="/">Run History</a>
+            <a href="/add-auth">Add Repository Auth</a>
+            <a href="/setup-webhook">Setup GitHub Webhook</a>
+        </div>
         <hr>
-        <h2>Trigger Information</h2>
-        <p><strong>Repository:</strong> {{ .RepoName }}</p>
-        <p><strong>Branch:</strong> {{ .Branch }}</p>
-        <p><strong>Commit SHA:</strong> {{ .CommitSHA }}</p>
-        <p><strong>Commit Message:</strong> {{ .CommitMsg }}</p>
-        <p><strong>Commit Author:</strong> {{ .CommitAuthor }}</p>
-        <p><strong>Triggered By:</strong> {{ .TriggeredBy }}</p>
-    </div>
 
-    <h2>Job Results</h2>
-    {{ range $jobName, $result := .Results }}
-    <div class="job">
-        <h3>Job: {{ $jobName }} - Status: <span class="status-{{ $result.Status | lower }}">{{ $result.Status }}</span></h3>
-        {{ range $stepName, $stepResult := $result.Steps }}
-        <div class="step">
-            <h4>Step: {{ $stepResult.Name }} - Status: <span class="status-{{ $stepResult.Status | lower }}">{{ $stepResult.Status }}</span></h4>
-            {{ if $stepResult.Logs }}
-            <div class="step-logs">
-                <pre>{{ $stepResult.Logs }}</pre>
+        <div class="metadata-section">
+            <h2>Run Information</h2>
+            <p><strong>Run ID:</strong> {{ .ID }}</p>
+            <p><strong>Overall Status:</strong> <span class="status-{{ .Status | lower }}">{{ .Status }}</span></p>
+            <p><strong>Start Time:</strong> {{ .StartTime.Format "2006-01-02 15:04:05" }}</p>
+            <p><strong>End Time:</strong> {{ .EndTime.Format "2006-01-02 15:04:05" }}</p>
+            <hr>
+            <h2>Trigger Information</h2>
+            <p><strong>Repository:</strong> {{ .RepoName }}</p>
+            <p><strong>Branch:</strong> {{ .Branch }}</p>
+            <p><strong>Commit SHA:</strong> {{ .CommitSHA }}</p>
+            <p><strong>Commit Message:</strong> {{ .CommitMsg }}</p>
+            <p><strong>Commit Author:</strong> {{ .CommitAuthor }}</p>
+            <p><strong>Triggered By:</strong> {{ .TriggeredBy }}</p>
+        </div>
+
+        <h2>Job Results</h2>
+        {{ range $jobName, $result := .Results }}
+        <div class="job">
+            <h3>Job: {{ $jobName }} - Status: <span class="status-{{ $result.Status | lower }}">{{ $result.Status }}</span></h3>
+            {{ range $stepName, $stepResult := $result.Steps }}
+            <div class="step">
+                <h4>Step: {{ $stepResult.Name }} - Status: <span class="status-{{ $stepResult.Status | lower }}">{{ $stepResult.Status }}</span></h4>
+                {{ if $stepResult.Logs }}
+                <div class="step-logs">
+                    {{ $stepResult.Logs }}
+                </div>
+                {{ else }}
+                <p>No logs for this step.</p>
+                {{ end }}
             </div>
-            {{ else }}
-            <p>No logs for this step.</p>
             {{ end }}
         </div>
+        {{ else }}
+        <p>No jobs found for this run.</p>
         {{ end }}
-    </div>
-    {{ else }}
-    <p>No jobs found for this run.</p>
-    {{ end }}
 
-    <p><a href="/">Back to Run History</a></p>
+        <div class="back-link">
+            <a href="/">Back to Run History</a>
+        </div>
+    </div>
 </body>
 </html>
