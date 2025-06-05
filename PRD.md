@@ -206,7 +206,7 @@ ci-pipeline-go/
 
 ---
 
-## 📘 Resources & Inspiration
+## 📘 Resources & Inspirations
 
 * [Drone CI](https://github.com/harness/drone)
 * [Woodpecker CI](https://github.com/woodpecker-ci/woodpecker)
