@@ -307,6 +307,38 @@ func main() {
 					return nil
 				},
 			},
+			{
+				Name:  "trigger",
+				Usage: "Manually trigger a run for specific repository. ",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "repo",
+						Usage:    "GitHub repository in the format 'owner/repo-name' (e.g., 'myorg/myproject')",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:  "branch",
+						Usage: "Git branch to trigger the run on (e.g., 'main', 'develop', etc.)",
+						Value: "main", // Default to 'main'
+					},
+					&cli.StringFlag{
+						Name:  "commit",
+						Usage: "Git commit SHA to trigger the run on (Optional)",
+					},
+				},
+				Action: func(c *cli.Context) error {
+					repoName := c.String("repo")
+					branch := c.String("branch")
+					commitSHA := c.String("commit")
+
+					log.Printf("Manually triggering run for repo: %s, branch: %s, commit: %s\n", repoName, branch, commitSHA)
+					if err := git.TriggerManualRun(repoName, branch, commitSHA); err != nil {
+						return fmt.Errorf("failed to trigger run: %w", err)
+					}
+					fmt.Printf("Run triggered for repo: %s, branch: %s, commit: %s\n", repoName, branch, commitSHA)
+					return nil
+				},
+			},
 		},
 		Action: func(c *cli.Context) error {
 			return c.App.Command("run").Run(c)

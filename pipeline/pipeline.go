@@ -42,25 +42,3 @@ func ExecutePipeline(cfg config.Config) (map[string]types.JobResult, error) {
 
 	return jobResults, nil
 }
-
-// executeJob executes a single job
-// func executeJob(job config.Job) JobResult {
-// 	result := JobResult{
-// 		Name:   job.Name,
-// 		Status: "Success", //  Assume success, change if error
-// 		Logs:   "",
-// 	}
-
-// 	for _, step := range job.Steps {
-// 		fmt.Printf("  Running step: %s\n", step.Name)
-// 		logs, err := executor.ExecuteStep(step) //  Phase 1: Local execution
-// 		result.Logs += logs + "\n"
-// 		if err != nil {
-// 			result.Status = "Failure"
-// 			result.Logs += "Step failed: " + err.Error()
-// 			break //  Stop on first failure
-// 		}
-// 	}
-
-// 	return result
-// }

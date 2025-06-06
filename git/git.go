@@ -448,3 +448,78 @@ func StartWebhookListener() error {
 	}
 	return nil
 }
+
+func CheckoutBranch(repoDir, branch string) error {
+	cmd := exec.Command("git", "checkout", branch)
+	cmd.Dir = repoDir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to checkout branch %s: %w, stderr: %s", branch, err, stderr.String())
+	}
+	return nil
+}
+
+func CheckoutCommit(repoDir, commitSHA string) error {
+	cmd := exec.Command("git", "checkout", commitSHA)
+	cmd.Dir = repoDir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to checkout commit %s: %w, stderr: %s", commitSHA, err, stderr.String())
+	}
+	return nil
+}
+
+func GetCurrentCommit(repoDir string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = repoDir
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current commit: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func GetCurrentBranch(repoDir string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = repoDir
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current branch: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func GetCommitDetails(repoDir, commitSHA string) (author string, message string, err error) {
+	if commitSHA == "" {
+		return "", "", fmt.Errorf("commit SHA cannot be empty")
+	}
+
+	cmdAuthor := exec.Command("git", "log", "-1", "--format=%an", commitSHA)
+	cmdAuthor.Dir = repoDir
+	authorOutput, err := cmdAuthor.Output()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get commit author: %w", err)
+	}
+	author = strings.TrimSpace(string(authorOutput))
+
+	cmdMessage := exec.Command("git", "log", "-1", "--format=%B", commitSHA)
+	cmdMessage.Dir = repoDir
+	messageOutput, err := cmdMessage.Output()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get commit message: %w", err)
+	}
+	message = strings.TrimSpace(string(messageOutput))
+	return author, message, nil
+}
+
+func GetCommitSHAFromBranch(repoDir, branch string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", branch)
+	cmd.Dir = repoDir
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get commit SHA from branch: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
