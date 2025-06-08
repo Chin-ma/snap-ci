@@ -1,5 +1,7 @@
 /temp_repo
 /run_metadata
 /auth_data
+/dist
 snap-ci
 build_release.sh
+.goreleaser.yaml
